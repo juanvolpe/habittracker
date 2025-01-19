@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 
 interface Group {
   id: string;
@@ -34,7 +34,13 @@ export default function ProfilePage() {
   const [newGroupData, setNewGroupData] = useState({ name: '', description: '' });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase();
+  };
 
   const loadData = async () => {
     if (status === 'authenticated' && session?.user?.id) {
@@ -79,36 +85,11 @@ export default function ProfilePage() {
   }, [status, session]);
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const previewImg = document.getElementById('preview-img') as HTMLImageElement;
-      if (previewImg) {
-        previewImg.src = reader.result as string;
-      }
-    };
-    reader.readAsDataURL(file);
-
-    // Upload the file
-    const formData = new FormData();
-    formData.append('file', file);
+    e.preventDefault();
+    const photoUrl = prompt('Please enter the URL of your profile photo:');
+    if (!photoUrl) return;
 
     try {
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload image');
-      }
-
-      const { photoUrl } = await uploadResponse.json();
-
       // Update profile with new photo URL
       const response = await fetch('/api/profile', {
         method: 'POST',
@@ -225,6 +206,36 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const response = await fetch('/api/user/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      // Sign out the user
+      await signOut({ redirect: false });
+      
+      // Redirect to home page
+      window.location.href = '/';
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -236,25 +247,14 @@ export default function ProfilePage() {
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Photo Section */}
+        {/* Profile Section */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="text-center">
-              <div className="relative inline-block">
-                <img
-                  src={personalData?.photoUrl || 'https://via.placeholder.com/150'}
-                  alt="Profile"
-                  className="w-32 h-32 rounded-full mx-auto mb-4 cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => fileInputRef.current?.click()}
-                />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                  capture="user"
-                />
+              <div className="w-32 h-32 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl font-semibold text-blue-600">
+                  {session?.user?.name ? getInitials(session.user.name) : 'U'}
+                </span>
               </div>
               <h2 className="text-xl font-semibold text-blue-900 mb-2">
                 {session?.user?.name || 'User'}
@@ -266,6 +266,20 @@ export default function ProfilePage() {
               {error && (
                 <div className="text-red-500 text-sm mb-4">{error}</div>
               )}
+              <div className="space-y-2">
+                <button
+                  onClick={handleDeleteUser}
+                  className="w-full text-red-500 hover:text-red-700 text-sm font-medium py-2"
+                >
+                  Delete Account
+                </button>
+                <button
+                  onClick={() => signOut()}
+                  className="w-full text-red-500 hover:text-red-700 text-sm font-medium py-2 border-t border-gray-100"
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -301,7 +315,7 @@ export default function ProfilePage() {
                           <p className="text-gray-600 mb-3">{group.description}</p>
                         )}
                         <div className="text-sm text-gray-500">
-                          {group._count?.members || 0} members
+                          {(group._count?.members ?? group.members?.length ?? 0)} members
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
@@ -317,18 +331,20 @@ export default function ProfilePage() {
                             <span className="px-4 py-2 bg-green-100 text-green-600 rounded-lg">
                               Member
                             </span>
-                            <button
-                              onClick={() => handleLeaveGroup(group.id)}
-                              className="text-red-500 hover:text-red-700 text-sm mt-2"
-                            >
-                              Leave Group
-                            </button>
                             {session?.user?.id === group.creatorId && (
                               <button
                                 onClick={() => handleDeleteGroup(group.id)}
                                 className="text-red-500 hover:text-red-700 text-sm mt-2 font-medium"
                               >
                                 Delete Group
+                              </button>
+                            )}
+                            {session?.user?.id !== group.creatorId && (
+                              <button
+                                onClick={() => handleLeaveGroup(group.id)}
+                                className="text-red-500 hover:text-red-700 text-sm mt-2"
+                              >
+                                Leave Group
                               </button>
                             )}
                           </>

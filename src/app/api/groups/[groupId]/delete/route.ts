@@ -3,27 +3,24 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
-  req: Request,
+  request: Request,
   { params }: { params: { groupId: string } }
 ) {
   try {
     const session = await auth();
-
     if (!session?.user?.id) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Not authenticated" },
         { status: 401 }
       );
     }
 
-    // Check if the group exists and if the user is the creator
+    const groupId = params.groupId;
+
+    // Check if the user is the creator of the group
     const group = await prisma.group.findUnique({
-      where: {
-        id: params.groupId,
-      },
-      select: {
-        creatorId: true,
-      },
+      where: { id: groupId },
+      select: { creatorId: true }
     });
 
     if (!group) {
@@ -40,33 +37,27 @@ export async function POST(
       );
     }
 
-    // Delete all related records first
+    // Delete group and related data in a transaction
     await prisma.$transaction([
+      // Delete all activities in the group
+      prisma.activity.deleteMany({
+        where: { groupId }
+      }),
       // Delete all group members
       prisma.groupMember.deleteMany({
-        where: {
-          groupId: params.groupId,
-        },
-      }),
-      // Delete all activities
-      prisma.activity.deleteMany({
-        where: {
-          groupId: params.groupId,
-        },
+        where: { groupId }
       }),
       // Finally delete the group
       prisma.group.delete({
-        where: {
-          id: params.groupId,
-        },
-      }),
+        where: { id: groupId }
+      })
     ]);
 
-    return NextResponse.json({ message: "Group successfully deleted" });
+    return NextResponse.json({ message: "Group deleted successfully" });
   } catch (error) {
     console.error("Error deleting group:", error);
     return NextResponse.json(
-      { error: "Error deleting group" },
+      { error: "Failed to delete group" },
       { status: 500 }
     );
   }

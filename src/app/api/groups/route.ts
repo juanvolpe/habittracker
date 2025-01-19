@@ -5,27 +5,27 @@ import { prisma } from "@/lib/prisma"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log('GroupsAPI: Request received')
-    
     const session = await auth()
-    console.log('GroupsAPI: Session:', { 
-      authenticated: !!session,
-      userId: session?.user?.id 
-    })
-
     if (!session?.user?.id) {
-      console.log('GroupsAPI: No authenticated user')
       return NextResponse.json(
         { error: "Not authenticated" },
         { status: 401 }
       )
     }
 
-    // Fetch all groups with membership info
-    console.log('GroupsAPI: Fetching all groups...')
-    const allGroups = await prisma.group.findMany({
+    const { searchParams } = new URL(request.url)
+    const showAll = searchParams.get('showAll') === 'true'
+
+    const groups = await prisma.group.findMany({
+      where: showAll ? {} : {
+        members: {
+          some: {
+            userId: session.user.id
+          }
+        }
+      },
       include: {
         members: {
           include: {
@@ -37,77 +37,29 @@ export async function GET() {
             }
           }
         },
-        createdBy: {
-          select: {
-            name: true,
-            email: true
-          }
-        },
         _count: {
           select: {
-            members: true,
-            activities: true
+            members: true
           }
         }
       }
     })
 
-    console.log('GroupsAPI: Raw groups found:', JSON.stringify(allGroups, null, 2))
-
-    // Format the response data and add isMember flag
-    const formattedGroups = allGroups.map(group => ({
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      createdBy: {
-        name: group.createdBy.name || 'Unknown',
-        email: group.createdBy.email
-      },
+    // Transform the data to include isMember flag and creatorId
+    const transformedGroups = groups.map(group => ({
+      ...group,
+      isMember: group.members.some(member => member.userId === session.user.id),
+      creatorId: group.creatorId, // Make sure creatorId is included
       members: group.members.map(member => ({
-        user: {
-          name: member.user.name || 'Unknown',
-          email: member.user.email
-        },
-        role: member.role
-      })),
-      memberCount: group._count.members,
-      activityCount: group._count.activities,
-      isMember: group.members.some(member => member.user.email === session.user.email),
-      isCreator: group.createdBy.email === session.user.email
-    }));
+        user: member.user
+      }))
+    }))
 
-    console.log('GroupsAPI: Formatted response:', JSON.stringify({ 
-      groups: formattedGroups,
-      count: formattedGroups.length
-    }, null, 2));
-
+    return NextResponse.json({ groups: transformedGroups })
+  } catch (error) {
+    console.error("Error fetching groups:", error)
     return NextResponse.json(
-      { 
-        groups: formattedGroups,
-        count: formattedGroups.length
-      },
-      { 
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      }
-    )
-  } catch (error: any) {
-    console.error('GroupsAPI: Error:', {
-      message: error.message,
-      name: error.name,
-      code: error.code,
-      stack: error.stack
-    })
-
-    return NextResponse.json(
-      { 
-        error: "Failed to fetch groups",
-        details: error.message
-      },
+      { error: "Failed to fetch groups" },
       { status: 500 }
     )
   }

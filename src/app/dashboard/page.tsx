@@ -30,9 +30,16 @@ export default function DashboardPage() {
       try {
         const response = await fetch('/api/groups');
         const data = await response.json();
-        if (response.ok && data.groups.length > 0) {
-          setGroups(data.groups);
-          setSelectedGroup(data.groups[0].id); // Select first group by default
+        if (response.ok) {
+          // Filter only groups where user is a member
+          const userGroups = data.groups.filter((group: any) => group.isMember);
+          if (userGroups.length > 0) {
+            setGroups(userGroups);
+            setSelectedGroup(userGroups[0].id); // Select first group by default
+          } else {
+            setGroups([]);
+            setSelectedGroup('');
+          }
         }
       } catch (error) {
         console.error('Error fetching groups:', error);
@@ -55,48 +62,58 @@ export default function DashboardPage() {
       {/* Controls Section */}
       <div className="mb-8 flex flex-wrap gap-4 items-center">
         {/* Group Selector */}
-        <select
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
+        {groups.length > 0 ? (
+          <>
+            <select
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
 
-        {/* Single Date Picker */}
-        <DatePicker
-          selected={selectedDate}
-          onChange={(date: Date) => setSelectedDate(date)}
-          dateFormat="MMMM d, yyyy"
-          className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-          placeholderText="Select a date"
-          showPopperArrow={false}
-        />
+            {/* Single Date Picker */}
+            <DatePicker
+              selected={selectedDate}
+              onChange={(date: Date) => setSelectedDate(date)}
+              dateFormat="MMMM d, yyyy"
+              className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              placeholderText="Select a date"
+              showPopperArrow={false}
+            />
+          </>
+        ) : (
+          <div className="w-full bg-blue-50 text-blue-700 p-4 rounded-lg">
+            You are not a member of any groups. Visit your profile page to join or create a group.
+          </div>
+        )}
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Leaderboard Section */}
-        <div>
-          <WeeklyLeaderboard
-            selectedGroup={selectedGroup}
-            selectedDate={selectedDate}
-          />
-        </div>
+      {groups.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Leaderboard Section */}
+          <div>
+            <WeeklyLeaderboard
+              selectedGroup={selectedGroup}
+              selectedDate={selectedDate}
+            />
+          </div>
 
-        {/* Weekly Group Activity Section */}
-        <div>
-          <WeeklyGroupActivity
-            groups={groups}
-            selectedGroup={selectedGroup}
-            selectedDate={selectedDate}
-          />
+          {/* Weekly Group Activity Section */}
+          <div>
+            <WeeklyGroupActivity
+              groups={groups}
+              selectedGroup={selectedGroup}
+              selectedDate={selectedDate}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 } 

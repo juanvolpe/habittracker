@@ -6,42 +6,50 @@ import { signOut } from 'next-auth/react';
 
 export default function Navbar() {
   const pathname = usePathname();
+
   const isActive = (path: string) => pathname === path;
 
+  const navLinks = [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/dashboard/tracker', label: 'Activity Tracker' },
+    { href: '/dashboard/profile', label: 'Profile' },
+  ];
+
   return (
-    <nav className="bg-white shadow-lg border-b border-blue-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="fixed top-0 left-0 right-0 bg-white shadow-lg z-40">
+      <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16">
-          <div className="flex space-x-8 items-center">
-            <div className="flex-shrink-0 flex items-center">
+          {/* Logo and Navigation Links */}
+          <div className="flex items-center space-x-8">
+            <div className="flex-shrink-0">
               <span className="text-2xl font-bold text-blue-600">🏃‍♂️ HabitTracker</span>
             </div>
-            <div className="flex space-x-6">
-              {[
-                { name: 'Dashboard', path: '/dashboard' },
-                { name: 'Activity Tracker', path: '/dashboard/tracker' },
-                { name: 'Profile', path: '/dashboard/profile' },
-              ].map((item) => (
+            <div className="flex space-x-8">
+              {navLinks.map((link) => (
                 <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`inline-flex items-center px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                    isActive(item.path)
-                      ? 'text-blue-600 bg-blue-50 rounded-md'
-                      : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md'
+                  key={link.href}
+                  href={link.href}
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 ${
+                    isActive(link.href)
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  {item.name}
+                  {link.label}
                 </Link>
               ))}
             </div>
           </div>
-          <button
-            onClick={() => signOut()}
-            className="inline-flex items-center px-4 py-2 my-3 text-sm font-medium rounded-md text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
-          >
-            Sign Out
-          </button>
+
+          {/* Sign Out Button */}
+          <div className="flex items-center">
+            <button
+              onClick={() => signOut()}
+              className="text-sm font-medium text-red-500 hover:text-red-700"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
     </nav>
