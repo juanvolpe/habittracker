@@ -15,13 +15,10 @@ export async function GET() {
       );
     }
 
-    // Fetch activities with user and group details
+    // Fetch only the user's activities
     const activities = await prisma.activity.findMany({
       where: {
-        OR: [
-          { userId: session.user.id },
-          { group: { members: { some: { userId: session.user.id } } } }
-        ]
+        userId: session.user.id // Only get activities for the current user
       },
       include: {
         user: {

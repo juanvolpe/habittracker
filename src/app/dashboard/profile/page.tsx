@@ -24,13 +24,26 @@ interface PersonalData {
   photoUrl?: string | null;
 }
 
+interface Activity {
+  id: string;
+  activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA';
+  duration: number;
+  date: Date;
+  group: {
+    name: string;
+  };
+}
+
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const [groups, setGroups] = useState<Group[]>([]);
   const [personalData, setPersonalData] = useState<PersonalData | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [newGroupData, setNewGroupData] = useState({ name: '', description: '' });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -47,22 +60,27 @@ export default function ProfilePage() {
       console.log('Session in profile:', session);
       try {
         console.log('Fetching groups...');
-        const response = await fetch('/api/groups?showAll=true');
-        console.log('Groups API status:', response.status);
-        const data = await response.json();
-        console.log('Groups API full response:', data);
+        const [groupsResponse, activitiesResponse] = await Promise.all([
+          fetch('/api/groups?showAll=true'),
+          fetch('/api/activities')
+        ]);
+        console.log('Groups API status:', groupsResponse.status);
+        console.log('Activities API status:', activitiesResponse.status);
         
-        if (response.ok) {
-          console.log('Setting groups:', data.groups);
-          setGroups(data.groups || []);
-        } else {
-          const errorMessage = data.details || data.error || 'Unknown error';
-          console.error('Failed to fetch groups:', errorMessage);
-          setError(errorMessage);
+        if (groupsResponse.ok) {
+          const groupsData = await groupsResponse.json();
+          console.log('Setting groups:', groupsData.groups);
+          setGroups(groupsData.groups || []);
+        }
+
+        if (activitiesResponse.ok) {
+          const activitiesData = await activitiesResponse.json();
+          console.log('Setting activities:', activitiesData.activities);
+          setActivities(activitiesData.activities || []);
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch groups';
-        console.error('Error in groups fetch:', errorMessage);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+        console.error('Error in data fetch:', errorMessage);
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -236,6 +254,53 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDeleteActivity = async (activityId: string) => {
+    if (!confirm('Are you sure you want to delete this activity?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete activity');
+      }
+
+      setSuccessMessage('Activity deleted successfully');
+      loadData(); // Reload the activities
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete activity');
+    }
+  };
+
+  const handleEditActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingActivity) return;
+
+    try {
+      const response = await fetch(`/api/activities/${editingActivity.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editingActivity),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update activity');
+      }
+
+      setSuccessMessage('Activity updated successfully');
+      setShowEditModal(false);
+      setEditingActivity(null);
+      loadData(); // Reload the activities
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update activity');
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -363,6 +428,163 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Activities Section */}
+      <div className="mt-8">
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Activities</h2>
+          
+          {loading ? (
+            <div className="text-center py-4">Loading activities...</div>
+          ) : activities.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              No activities logged yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Activity Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Duration (min)
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Group
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {activities.map((activity) => (
+                    <tr key={activity.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(activity.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {activity.activityType}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {activity.duration}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {activity.group.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => {
+                            setEditingActivity(activity);
+                            setShowEditModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 mr-4"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteActivity(activity.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Activity Modal */}
+      {showEditModal && editingActivity && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-blue-900 mb-4">
+              Edit Activity
+            </h2>
+            <form onSubmit={handleEditActivity} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Activity Type
+                </label>
+                <select
+                  value={editingActivity.activityType}
+                  onChange={(e) => setEditingActivity({
+                    ...editingActivity,
+                    activityType: e.target.value as any
+                  })}
+                  className="w-full rounded-lg border border-blue-200 px-3 py-2"
+                >
+                  <option value="CAMINATA">Walking</option>
+                  <option value="CORRER">Running</option>
+                  <option value="BICICLETA_FIJA">Stationary Bike</option>
+                  <option value="GYM">Gym</option>
+                  <option value="TAP_OUT">Tap Out</option>
+                  <option value="PILATES">Pilates</option>
+                  <option value="MALOVA">Malova</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  value={editingActivity.duration}
+                  onChange={(e) => setEditingActivity({
+                    ...editingActivity,
+                    duration: parseInt(e.target.value)
+                  })}
+                  className="w-full rounded-lg border border-blue-200 px-3 py-2"
+                  min="1"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={new Date(editingActivity.date).toISOString().split('T')[0]}
+                  onChange={(e) => setEditingActivity({
+                    ...editingActivity,
+                    date: new Date(e.target.value)
+                  })}
+                  className="w-full rounded-lg border border-blue-200 px-3 py-2"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingActivity(null);
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Create Group Modal */}
       {showCreateModal && (
