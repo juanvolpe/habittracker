@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 interface ActivityFormData {
   activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA';
@@ -11,35 +13,75 @@ interface ActivityFormData {
   groupId: string;
 }
 
+interface Group {
+  id: string;
+  name: string;
+  isMember: boolean;
+}
+
 export default function TrackerPage() {
+  const { data: session } = useSession();
   const [activityType, setActivityType] = useState<ActivityFormData['activityType']>('CAMINATA');
   const [duration, setDuration] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
-  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
-  const [loading, setLoading] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const fetchGroups = useCallback(async () => {
-    try {
-      const response = await fetch('/api/groups');
-      if (!response.ok) {
-        throw new Error('Failed to fetch groups');
-      }
-      const data = await response.json();
-      // Filter only groups where user is a member
-      const userGroups = data.groups.filter((group: any) => group.isMember);
-      setGroups(userGroups);
-    } catch (err) {
-      console.error('Error fetching groups:', err);
-      setError('Failed to load groups');
-    }
-  }, []);
-
   useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
+    const fetchGroups = async () => {
+      try {
+        const response = await fetch('/api/groups');
+        const data = await response.json();
+        
+        if (response.ok) {
+          const memberGroups = data.groups.filter((group: Group) => group.isMember);
+          setGroups(memberGroups);
+          if (memberGroups.length > 0) {
+            setSelectedGroup(memberGroups[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+        setError('Failed to fetch groups');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (session?.user?.id) {
+      fetchGroups();
+    }
+  }, [session]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // If no groups, show message
+  if (groups.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-lg p-6 text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Ready to Log Your Activities?</h2>
+          <p className="text-gray-600 mb-4">To start logging your activities, you'll need to join or create a group first. Visit your profile page to get started!</p>
+          <Link 
+            href="/dashboard/profile"
+            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Go to Profile
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +115,7 @@ export default function TrackerPage() {
       formRef.current?.reset();
 
       console.log('Activity logged successfully');
+      setSuccessMessage('Activity logged successfully');
     } catch (err) {
       console.error('Error logging activity:', err);
       setError(err instanceof Error ? err.message : 'Failed to log activity');
@@ -169,6 +212,12 @@ export default function TrackerPage() {
         {error && (
           <div className="text-red-500 text-sm bg-red-50 rounded-lg p-3">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="text-green-500 text-sm bg-green-50 rounded-lg p-3">
+            {successMessage}
           </div>
         )}
 

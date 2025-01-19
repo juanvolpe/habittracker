@@ -287,8 +287,8 @@ export default function ProfilePage() {
         {/* Groups Section */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Groups</h2>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-blue-900">Groups</h2>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

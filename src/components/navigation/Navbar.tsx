@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -11,7 +10,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
-    { href: '/dashboard/tracker', label: 'Activity Tracker' },
+    { href: '/dashboard/tracker', label: 'Log Activity' },
     { href: '/dashboard/profile', label: 'Profile' },
   ];
 
@@ -39,16 +38,6 @@ export default function Navbar() {
                 </Link>
               ))}
             </div>
-          </div>
-
-          {/* Sign Out Button */}
-          <div className="flex items-center">
-            <button
-              onClick={() => signOut()}
-              className="text-sm font-medium text-red-500 hover:text-red-700"
-            >
-              Sign Out
-            </button>
           </div>
         </div>
       </div>
