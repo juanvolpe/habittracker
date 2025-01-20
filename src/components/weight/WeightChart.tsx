@@ -4,9 +4,6 @@ import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import type { ChartData, ChartOptions } from 'chart.js';
 
-// Create a declaration for chartjs-adapter-date-fns
-declare module 'chartjs-adapter-date-fns';
-
 const Line = dynamic(
   () => import('react-chartjs-2').then(mod => mod.Line),
   { ssr: false }
