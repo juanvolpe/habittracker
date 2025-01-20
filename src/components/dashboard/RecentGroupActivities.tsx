@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, startOfMonth } from 'date-fns';
 
 interface Group {
   id: string;
@@ -60,11 +60,11 @@ export default function WeeklyLeaderboard({ selectedGroup, selectedDate }: Props
       if (isYearlyView) {
         startDate = new Date(selectedDate.getFullYear(), 0, 1); // Start of current year
       } else {
-        startDate = startOfWeek(selectedDate, { weekStartsOn: 1 });
+        startDate = startOfMonth(selectedDate); // Start of current month
       }
       
       const response = await fetch(
-        `/api/groups/${selectedGroup}/weekly-activities?date=${startDate.toISOString()}&viewType=${isYearlyView ? 'yearly' : 'weekly'}`
+        `/api/groups/${selectedGroup}/weekly-activities?date=${startDate.toISOString()}&viewType=${isYearlyView ? 'yearly' : 'monthly'}`
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
