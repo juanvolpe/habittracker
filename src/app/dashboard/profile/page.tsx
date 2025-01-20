@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { Line } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
+
+const Line = dynamic(
+  () => import('react-chartjs-2').then(mod => mod.Line),
+  { ssr: false }
+);
+
+// Dynamically import Chart.js components
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,18 +25,20 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale,
-  zoomPlugin
-);
+// Only register Chart.js on client side
+if (typeof window !== 'undefined') {
+  ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    TimeScale,
+    zoomPlugin
+  );
+}
 
 interface Group {
   id: string;

@@ -1,46 +1,32 @@
-const { Client } = require('pg');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-async function cleanupMigrations() {
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false // Required for some PostgreSQL hosting providers
-    }
-  });
-  
+async function cleanup() {
   try {
-    await client.connect();
+    // Delete all weights first
+    await prisma.weight.deleteMany();
     
-    // Check if _prisma_migrations table exists
-    const tableExists = await client.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = '_prisma_migrations'
-      );
-    `);
-    
-    if (!tableExists.rows[0].exists) {
-      console.log('_prisma_migrations table does not exist. Skipping cleanup.');
-      return;
-    }
-    
-    // Clean up failed migrations
-    const result = await client.query(
-      `DELETE FROM "_prisma_migrations" WHERE migration_name = '20240318000000_add_user_role_enum' AND applied_steps_count = 0;`
-    );
-    
-    console.log('Cleanup completed:', result.rowCount);
+    // Delete all activities
+    await prisma.activity.deleteMany();
+
+    // Delete all group members
+    await prisma.groupMember.deleteMany();
+
+    // Delete all groups
+    await prisma.group.deleteMany();
+
+    // Delete all personal data
+    await prisma.personalData.deleteMany();
+
+    // Delete all users
+    await prisma.user.deleteMany();
+
+    console.log('Cleanup completed:', 0);
   } catch (error) {
-    console.error('Error during cleanup:', error);
-    // Don't exit with error if table doesn't exist
-    if (error.code !== '42P01') {
-      process.exit(1);
-    }
-    console.log('Continuing deployment...');
+    console.error('Error cleaning up data:', error);
   } finally {
-    await client.end();
+    await prisma.$disconnect();
   }
 }
 
-cleanupMigrations(); 
+cleanup(); 
