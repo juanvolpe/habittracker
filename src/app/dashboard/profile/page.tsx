@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import dynamic from 'next/dynamic';
+import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import WeightChart from '@/components/weight/WeightChart';
 
 const Line = dynamic(
   () => import('react-chartjs-2').then(mod => mod.Line),
@@ -23,7 +25,6 @@ import {
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 // Only register Chart.js on client side
 if (typeof window !== 'undefined') {
@@ -611,33 +612,11 @@ export default function ProfilePage() {
 
         {/* Weight Chart Section */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Weight Tracking</h2>
-                <p className="text-sm text-gray-500">Your weight evolution over time</p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600">{currentWeight.toFixed(1)} kg</div>
-                <div className={`text-sm ${weightChange > 0 ? 'text-red-500' : weightChange < 0 ? 'text-green-500' : 'text-gray-500'}`}>
-                  {weightChange !== 0 ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg` : 'No change'} from last month
-                </div>
-              </div>
-            </div>
-            <div className="relative">
-              <div className="h-64">
-                <Line ref={chartRef} data={chartData} options={chartOptions} />
-              </div>
-              <div className="mt-4 flex justify-between items-center">
-                <button
-                  onClick={handleResetZoom}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
-                >
-                  Reset Zoom
-                </button>
-              </div>
-            </div>
-          </div>
+          <WeightChart
+            weights={weights}
+            currentWeight={currentWeight}
+            weightChange={weightChange}
+          />
         </div>
 
         {/* Groups Section */}
