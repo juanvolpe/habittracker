@@ -1,45 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import dynamic from 'next/dynamic';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import WeightChart from '@/components/weight/WeightChart';
-
-const Line = dynamic(
-  () => import('react-chartjs-2').then(mod => mod.Line),
-  { ssr: false }
-);
-
-// Dynamically import Chart.js components
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale
-} from 'chart.js';
-import zoomPlugin from 'chartjs-plugin-zoom';
-import 'chartjs-adapter-date-fns';
-
-// Only register Chart.js on client side
-if (typeof window !== 'undefined') {
-  ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    TimeScale,
-    zoomPlugin
-  );
-}
 
 interface Group {
   id: string;
@@ -91,7 +55,6 @@ export default function ProfilePage() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [newGroupData, setNewGroupData] = useState({ name: '', description: '' });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const chartRef = useRef<any>(null);
 
   const getInitials = (name: string) => {
     return name
@@ -408,159 +371,8 @@ export default function ProfilePage() {
   })?.weight || 0;
   const weightChange = currentWeight - lastMonthWeight;
 
-  // Prepare chart data
-  const sortedWeights = weights.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  
-  const chartData = {
-    datasets: [
-      {
-        label: 'Weight (kg)',
-        data: sortedWeights.map(w => ({
-          x: new Date(w.date),
-          y: w.weight
-        })),
-        fill: false,
-        borderColor: 'rgb(59, 130, 246)',
-        tension: 0,
-        pointRadius: 4,
-        pointBackgroundColor: 'rgb(59, 130, 246)'
-      }
-    ]
-  };
-
-  // Calculate min and max weights for Y axis padding
-  const weightValues = sortedWeights.map(w => w.weight);
-  const minWeight = Math.min(...weightValues);
-  const maxWeight = Math.max(...weightValues);
-  const yMin = weightValues.length > 0 ? minWeight - 15 : 50; // 15kg below lowest or default to 50
-  const yMax = weightValues.length > 0 ? maxWeight + 10 : 100; // 10kg above highest or default to 100
-  const weightRange = yMax - yMin;
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: {
-      duration: 750,
-      easing: 'easeInOutCubic' as const
-    },
-    interaction: {
-      mode: 'nearest' as const,
-      axis: 'x' as const,
-      intersect: true
-    },
-    plugins: {
-      legend: {
-        display: false
-      },
-      tooltip: {
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        titleColor: '#1e3a8a',
-        bodyColor: '#1e3a8a',
-        borderColor: '#93c5fd',
-        borderWidth: 1,
-        padding: 12,
-        displayColors: false,
-        callbacks: {
-          title(context: any) {
-            const date = new Date(context[0].raw.x);
-            return date.toLocaleDateString('en-US', { 
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            });
-          },
-          label(context: any) {
-            return `Weight: ${context.raw.y.toFixed(1)} kg`;
-          },
-          afterLabel(context: any) {
-            const weights = sortedWeights.map(w => w.weight);
-            const currentIndex = context.dataIndex;
-            let change = '';
-            
-            if (currentIndex > 0) {
-              const previousWeight = weights[currentIndex - 1];
-              const currentWeight = weights[currentIndex];
-              const diff = currentWeight - previousWeight;
-              change = `Change: ${diff > 0 ? '+' : ''}${diff.toFixed(1)} kg`;
-            }
-            
-            return change;
-          }
-        }
-      },
-      zoom: {
-        pan: {
-          enabled: true,
-          mode: 'x' as const,
-          modifierKey: 'ctrl' as const
-        },
-        zoom: {
-          wheel: {
-            enabled: true,
-            modifierKey: 'ctrl' as const
-          },
-          pinch: {
-            enabled: true
-          },
-          mode: 'x' as const,
-          drag: {
-            enabled: true,
-            backgroundColor: 'rgba(147, 197, 253, 0.3)',
-            borderColor: 'rgb(59, 130, 246)',
-            borderWidth: 1
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        type: 'time' as const,
-        time: {
-          unit: 'month' as const,
-          displayFormats: {
-            month: 'MMM yyyy'
-          },
-          tooltipFormat: 'PP'
-        },
-        title: {
-          display: true,
-          text: 'Date'
-        },
-        grid: {
-          display: true,
-          color: 'rgba(0, 0, 0, 0.1)'
-        }
-      },
-      y: {
-        type: 'linear' as const,
-        min: yMin,
-        max: yMax,
-        beginAtZero: false,
-        title: {
-          display: true,
-          text: 'Weight (kg)'
-        },
-        ticks: {
-          stepSize: Math.ceil(weightRange / 8), // Show around 8 ticks on the Y axis
-          callback: function(value: any) {
-            return value.toFixed(1) + ' kg';
-          }
-        },
-        grid: {
-          display: true,
-          color: 'rgba(0, 0, 0, 0.1)'
-        }
-      }
-    }
-  };
-
-  // Add zoom controls
-  const handleResetZoom = () => {
-    if (chartRef.current) {
-      chartRef.current.resetZoom();
-    }
-  };
+  // Sort weights for the table
+  const sortedWeights = weights.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (status === 'loading') {
     return (

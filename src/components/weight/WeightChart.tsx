@@ -1,40 +1,16 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale
-} from 'chart.js';
-import zoomPlugin from 'chartjs-plugin-zoom';
-import 'chartjs-adapter-date-fns';
+import type { ChartData, ChartOptions } from 'chart.js';
+
+// Create a declaration for chartjs-adapter-date-fns
+declare module 'chartjs-adapter-date-fns';
 
 const Line = dynamic(
   () => import('react-chartjs-2').then(mod => mod.Line),
   { ssr: false }
 );
-
-// Register Chart.js components
-if (typeof window !== 'undefined') {
-  ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    TimeScale,
-    zoomPlugin
-  );
-}
 
 interface Weight {
   id: string;
@@ -51,15 +27,27 @@ interface WeightChartProps {
 export default function WeightChart({ weights, currentWeight, weightChange }: WeightChartProps) {
   const chartRef = useRef<any>(null);
 
+  useEffect(() => {
+    async function initChart() {
+      const { Chart } = await import('chart.js/auto');
+      const zoomPlugin = (await import('chartjs-plugin-zoom')).default;
+      await import('chartjs-adapter-date-fns');
+
+      Chart.register(zoomPlugin);
+    }
+
+    initChart();
+  }, []);
+
   // Prepare chart data
   const sortedWeights = weights.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   
-  const chartData = {
+  const chartData: ChartData<'line'> = {
     datasets: [
       {
         label: 'Weight (kg)',
         data: sortedWeights.map(w => ({
-          x: new Date(w.date),
+          x: new Date(w.date).getTime(),
           y: w.weight
         })),
         fill: false,
@@ -79,16 +67,16 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
   const yMax = weightValues.length > 0 ? maxWeight + 10 : 100;
   const weightRange = yMax - yMin;
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     animation: {
       duration: 750,
-      easing: 'easeInOutCubic' as const
+      easing: 'easeInOutCubic'
     },
     interaction: {
-      mode: 'nearest' as const,
-      axis: 'x' as const,
+      mode: 'nearest',
+      axis: 'x',
       intersect: true
     },
     plugins: {
@@ -135,18 +123,18 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
       zoom: {
         pan: {
           enabled: true,
-          mode: 'x' as const,
-          modifierKey: 'ctrl' as const
+          mode: 'x',
+          modifierKey: 'ctrl'
         },
         zoom: {
           wheel: {
             enabled: true,
-            modifierKey: 'ctrl' as const
+            modifierKey: 'ctrl'
           },
           pinch: {
             enabled: true
           },
-          mode: 'x' as const,
+          mode: 'x',
           drag: {
             enabled: true,
             backgroundColor: 'rgba(147, 197, 253, 0.3)',
@@ -158,9 +146,9 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
     },
     scales: {
       x: {
-        type: 'time' as const,
+        type: 'time',
         time: {
-          unit: 'month' as const,
+          unit: 'month',
           displayFormats: {
             month: 'MMM yyyy'
           },
@@ -176,7 +164,7 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
         }
       },
       y: {
-        type: 'linear' as const,
+        type: 'linear',
         min: yMin,
         max: yMax,
         beginAtZero: false,
@@ -220,7 +208,9 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
       </div>
       <div className="relative">
         <div className="h-64">
-          <Line ref={chartRef} data={chartData} options={chartOptions} />
+          {typeof window !== 'undefined' && (
+            <Line ref={chartRef} data={chartData} options={chartOptions} />
+          )}
         </div>
         <div className="mt-4 flex justify-between items-center">
           <button
