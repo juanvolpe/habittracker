@@ -14,7 +14,8 @@
     "postinstall": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
     "db:clean": "node prisma/cleanup-migrations.js",
-    "db:deploy": "npm install pg && prisma migrate deploy && npm run db:clean",
+    "db:reset": "prisma migrate reset --force",
+    "db:deploy": "npm install pg && prisma db push --accept-data-loss && npm run db:clean",
     "db:push": "prisma db push"
   },
   "dependencies": {
