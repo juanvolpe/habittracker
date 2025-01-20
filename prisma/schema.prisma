@@ -24,6 +24,7 @@ model User {
   createdGroups Group[]        @relation("GroupCreator")
   memberships   GroupMember[]
   personalData  PersonalData[]
+  weights       Weight[]
 }
 
 model Group {
@@ -72,6 +73,15 @@ model PersonalData {
   userId    String
   photoUrl  String?
   logDate   DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Weight {
+  id        String   @id @default(cuid())
+  userId    String
+  weight    Float
+  date      DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
 }

@@ -1,7 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale
+} from 'chart.js';
+import zoomPlugin from 'chartjs-plugin-zoom';
+import 'chartjs-adapter-date-fns';
+import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+  zoomPlugin
+);
 
 interface Group {
   id: string;
@@ -34,11 +62,18 @@ interface Activity {
   };
 }
 
+interface Weight {
+  id: string;
+  weight: number;
+  date: Date;
+}
+
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const [groups, setGroups] = useState<Group[]>([]);
   const [personalData, setPersonalData] = useState<PersonalData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [weights, setWeights] = useState<Weight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,6 +81,7 @@ export default function ProfilePage() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [newGroupData, setNewGroupData] = useState({ name: '', description: '' });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const chartRef = useRef<any>(null);
 
   const getInitials = (name: string) => {
     return name
@@ -60,9 +96,10 @@ export default function ProfilePage() {
       console.log('Session in profile:', session);
       try {
         console.log('Fetching groups...');
-        const [groupsResponse, activitiesResponse] = await Promise.all([
+        const [groupsResponse, activitiesResponse, weightsResponse] = await Promise.all([
           fetch('/api/groups?showAll=true'),
-          fetch('/api/activities')
+          fetch('/api/activities'),
+          fetch('/api/weight')
         ]);
         console.log('Groups API status:', groupsResponse.status);
         console.log('Activities API status:', activitiesResponse.status);
@@ -77,6 +114,11 @@ export default function ProfilePage() {
           const activitiesData = await activitiesResponse.json();
           console.log('Setting activities:', activitiesData.activities);
           setActivities(activitiesData.activities || []);
+        }
+
+        if (weightsResponse.ok) {
+          const weightsData = await weightsResponse.json();
+          setWeights(weightsData.weights || []);
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
@@ -301,6 +343,215 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDeleteWeight = async (weightId: string) => {
+    if (!confirm('Are you sure you want to delete this weight entry?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/weight/${weightId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete weight entry');
+      }
+
+      setSuccessMessage('Weight entry deleted successfully');
+      loadData(); // Reload the data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete weight entry');
+    }
+  };
+
+  const handleEditWeight = async (weightId: string, newWeight: number, newDate: string) => {
+    try {
+      const response = await fetch(`/api/weight/${weightId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          weight: newWeight,
+          date: newDate
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update weight entry');
+      }
+
+      setSuccessMessage('Weight entry updated successfully');
+      loadData(); // Reload the data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update weight entry');
+    }
+  };
+
+  // Calculate current weight and monthly change
+  const currentWeight = weights[0]?.weight || 0;
+  const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
+  const lastMonthEnd = endOfMonth(subMonths(new Date(), 1));
+  const lastMonthWeight = weights.find(w => {
+    const date = new Date(w.date);
+    return date >= lastMonthStart && date <= lastMonthEnd;
+  })?.weight || 0;
+  const weightChange = currentWeight - lastMonthWeight;
+
+  // Prepare chart data
+  const sortedWeights = weights.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  
+  const chartData = {
+    datasets: [
+      {
+        label: 'Weight (kg)',
+        data: sortedWeights.map(w => ({
+          x: new Date(w.date),
+          y: w.weight
+        })),
+        fill: false,
+        borderColor: 'rgb(59, 130, 246)',
+        tension: 0,
+        pointRadius: 4,
+        pointBackgroundColor: 'rgb(59, 130, 246)'
+      }
+    ]
+  };
+
+  // Calculate min and max weights for Y axis padding
+  const weightValues = sortedWeights.map(w => w.weight);
+  const minWeight = Math.min(...weightValues);
+  const maxWeight = Math.max(...weightValues);
+  const yMin = weightValues.length > 0 ? minWeight - 15 : 50; // 15kg below lowest or default to 50
+  const yMax = weightValues.length > 0 ? maxWeight + 10 : 100; // 10kg above highest or default to 100
+  const weightRange = yMax - yMin;
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 750,
+      easing: 'easeInOutCubic' as const
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      axis: 'x' as const,
+      intersect: true
+    },
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        titleColor: '#1e3a8a',
+        bodyColor: '#1e3a8a',
+        borderColor: '#93c5fd',
+        borderWidth: 1,
+        padding: 12,
+        displayColors: false,
+        callbacks: {
+          title(context: any) {
+            const date = new Date(context[0].raw.x);
+            return date.toLocaleDateString('en-US', { 
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+          },
+          label(context: any) {
+            return `Weight: ${context.raw.y.toFixed(1)} kg`;
+          },
+          afterLabel(context: any) {
+            const weights = sortedWeights.map(w => w.weight);
+            const currentIndex = context.dataIndex;
+            let change = '';
+            
+            if (currentIndex > 0) {
+              const previousWeight = weights[currentIndex - 1];
+              const currentWeight = weights[currentIndex];
+              const diff = currentWeight - previousWeight;
+              change = `Change: ${diff > 0 ? '+' : ''}${diff.toFixed(1)} kg`;
+            }
+            
+            return change;
+          }
+        }
+      },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: 'x' as const,
+          modifierKey: 'ctrl' as const
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            modifierKey: 'ctrl' as const
+          },
+          pinch: {
+            enabled: true
+          },
+          mode: 'x' as const,
+          drag: {
+            enabled: true,
+            backgroundColor: 'rgba(147, 197, 253, 0.3)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        type: 'time' as const,
+        time: {
+          unit: 'month' as const,
+          displayFormats: {
+            month: 'MMM yyyy'
+          },
+          tooltipFormat: 'PP'
+        },
+        title: {
+          display: true,
+          text: 'Date'
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)'
+        }
+      },
+      y: {
+        type: 'linear' as const,
+        min: yMin,
+        max: yMax,
+        beginAtZero: false,
+        title: {
+          display: true,
+          text: 'Weight (kg)'
+        },
+        ticks: {
+          stepSize: Math.ceil(weightRange / 8), // Show around 8 ticks on the Y axis
+          callback: function(value: any) {
+            return value.toFixed(1) + ' kg';
+          }
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)'
+        }
+      }
+    }
+  };
+
+  // Add zoom controls
+  const handleResetZoom = () => {
+    if (chartRef.current) {
+      chartRef.current.resetZoom();
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -349,8 +600,39 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Groups Section */}
+        {/* Weight Chart Section */}
         <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Weight Tracking</h2>
+                <p className="text-sm text-gray-500">Your weight evolution over time</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-blue-600">{currentWeight.toFixed(1)} kg</div>
+                <div className={`text-sm ${weightChange > 0 ? 'text-red-500' : weightChange < 0 ? 'text-green-500' : 'text-gray-500'}`}>
+                  {weightChange !== 0 ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg` : 'No change'} from last month
+                </div>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="h-64">
+                <Line ref={chartRef} data={chartData} options={chartOptions} />
+              </div>
+              <div className="mt-4 flex justify-between items-center">
+                <button
+                  onClick={handleResetZoom}
+                  className="px-3 py-1 text-sm bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
+                >
+                  Reset Zoom
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Groups Section */}
+        <div className="lg:col-span-3">
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Groups</h2>
             <div className="flex justify-between items-center mb-6">
@@ -427,68 +709,122 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* Activities Section */}
-      <div className="mt-8">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Activities</h2>
-          
-          {loading ? (
-            <div className="text-center py-4">Loading activities...</div>
-          ) : activities.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              No activities logged yet
-            </div>
-          ) : (
+        {/* Activities Section */}
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Activities</h2>
+            
+            {loading ? (
+              <div className="text-center py-4">Loading activities...</div>
+            ) : activities.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                No activities logged yet
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Activity Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Duration (min)
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Group
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {activities.map((activity) => (
+                      <tr key={activity.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(activity.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {activity.activityType}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {activity.duration}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {activity.group.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => {
+                              setEditingActivity(activity);
+                              setShowEditModal(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 mr-4"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteActivity(activity.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Weight History Section */}
+        <div className="lg:col-span-3 mt-6">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Weight History</h2>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Activity Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duration (min)
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Group
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight (kg)</th>
+                    <th className="px-6 py-3 bg-gray-50 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {activities.map((activity) => (
-                    <tr key={activity.id}>
+                  {sortedWeights.map((weight) => (
+                    <tr key={weight.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(activity.date).toLocaleDateString()}
+                        {new Date(weight.date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {activity.activityType}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {activity.duration}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {activity.group.name}
+                        {weight.weight.toFixed(1)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
                           onClick={() => {
-                            setEditingActivity(activity);
-                            setShowEditModal(true);
+                            const newWeight = prompt('Enter new weight (kg):', weight.weight.toString());
+                            const newDate = prompt('Enter new date (YYYY-MM-DD):', new Date(weight.date).toISOString().split('T')[0]);
+                            if (newWeight && newDate) {
+                              handleEditWeight(weight.id, parseFloat(newWeight), newDate);
+                            }
                           }}
                           className="text-blue-600 hover:text-blue-900 mr-4"
                         >
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDeleteActivity(activity.id)}
+                          onClick={() => handleDeleteWeight(weight.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Delete
@@ -499,7 +835,7 @@ export default function ProfilePage() {
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
