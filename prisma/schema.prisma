@@ -84,4 +84,5 @@ enum ActivityType {
   TAP_OUT
   PILATES
   MALOVA
+  NATACION
 }

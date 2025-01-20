@@ -26,7 +26,7 @@ interface PersonalData {
 
 interface Activity {
   id: string;
-  activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA';
+  activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA' | 'NATACION';
   duration: number;
   date: Date;
   group: {
@@ -530,6 +530,7 @@ export default function ProfilePage() {
                   <option value="TAP_OUT">Tap Out</option>
                   <option value="PILATES">Pilates</option>
                   <option value="MALOVA">Malova</option>
+                  <option value="NATACION">Swimming</option>
                 </select>
               </div>
               <div>

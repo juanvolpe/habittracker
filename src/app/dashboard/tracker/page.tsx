@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 interface ActivityFormData {
-  activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA';
+  activityType: 'CAMINATA' | 'CORRER' | 'BICICLETA_FIJA' | 'GYM' | 'TAP_OUT' | 'PILATES' | 'MALOVA' | 'NATACION';
   duration: number;
   date: Date;
   groupId: string;
@@ -23,7 +23,12 @@ export default function TrackerPage() {
   const { data: session } = useSession();
   const [activityType, setActivityType] = useState<ActivityFormData['activityType']>('CAMINATA');
   const [duration, setDuration] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  });
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +115,10 @@ export default function TrackerPage() {
       // Reset form
       setActivityType('CAMINATA');
       setDuration('');
-      setDate(new Date().toISOString().split('T')[0]);
+      const today = new Date();
+      const offset = today.getTimezoneOffset();
+      const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+      setDate(localDate.toISOString().split('T')[0]);
       setSelectedGroup('');
       formRef.current?.reset();
 
@@ -175,6 +183,7 @@ export default function TrackerPage() {
             <option value="TAP_OUT">Tap Out</option>
             <option value="PILATES">Pilates</option>
             <option value="MALOVA">Malova</option>
+            <option value="NATACION">Swimming</option>
           </select>
         </div>
 
