@@ -19,7 +19,7 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1",
+    "@prisma/client": "^6.19.1",
     "@swc/helpers": "^0.5.15",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.14",
@@ -47,7 +47,7 @@
     "@types/pg": "^8.11.0",
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
-    "prisma": "^5.7.1",
+    "prisma": "^6.19.1",
     "ts-node": "^10.9.2"
   }
 }

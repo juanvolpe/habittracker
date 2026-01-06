@@ -1,12 +1,33 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
+import { useRef } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+} from 'chart.js';
+import zoomPlugin from 'chartjs-plugin-zoom';
+import { Line } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
 import type { ChartData, ChartOptions } from 'chart.js';
 
-const Line = dynamic(
-  () => import('react-chartjs-2').then(mod => mod.Line),
-  { ssr: false }
+// Register Chart.js components synchronously before render
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+  zoomPlugin
 );
 
 interface Weight {
@@ -23,18 +44,6 @@ interface WeightChartProps {
 
 export default function WeightChart({ weights, currentWeight, weightChange }: WeightChartProps) {
   const chartRef = useRef<any>(null);
-
-  useEffect(() => {
-    async function initChart() {
-      const { Chart } = await import('chart.js/auto');
-      const zoomPlugin = (await import('chartjs-plugin-zoom')).default;
-      await import('chartjs-adapter-date-fns');
-
-      Chart.register(zoomPlugin);
-    }
-
-    initChart();
-  }, []);
 
   // Prepare chart data
   const sortedWeights = weights.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -120,18 +129,18 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
       zoom: {
         pan: {
           enabled: true,
-          mode: 'x',
-          modifierKey: 'ctrl'
+          mode: 'x' as const,
+          modifierKey: 'ctrl' as const
         },
         zoom: {
           wheel: {
             enabled: true,
-            modifierKey: 'ctrl'
+            modifierKey: 'ctrl' as const
           },
           pinch: {
             enabled: true
           },
-          mode: 'x',
+          mode: 'x' as const,
           drag: {
             enabled: true,
             backgroundColor: 'rgba(147, 197, 253, 0.3)',
@@ -205,9 +214,7 @@ export default function WeightChart({ weights, currentWeight, weightChange }: We
       </div>
       <div className="relative">
         <div className="h-64">
-          {typeof window !== 'undefined' && (
-            <Line ref={chartRef} data={chartData} options={chartOptions} />
-          )}
+          <Line ref={chartRef} data={chartData} options={chartOptions} />
         </div>
         <div className="mt-4 flex justify-between items-center">
           <button
