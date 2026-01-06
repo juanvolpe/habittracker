@@ -3,7 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
-import WeightChart from '@/components/weight/WeightChart';
+import dynamic from 'next/dynamic';
+
+const WeightChart = dynamic(
+  () => import('@/components/weight/WeightChart'),
+  { ssr: false, loading: () => <div className="bg-white rounded-xl shadow-lg p-6 h-64 flex items-center justify-center">Loading chart...</div> }
+);
 
 interface Group {
   id: string;
